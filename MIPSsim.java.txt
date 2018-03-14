@@ -1,0 +1,1023 @@
+/* On my honor, I have neither given nor received unauthorized aid on this assignment */
+package abc;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Queue;
+import java.util.Scanner;
+
+import javax.swing.text.html.HTMLDocument.Iterator;
+
+public class abc {
+	HashMap<String, String> C1 = new HashMap<String, String>(); // 存放映射
+	List<HashMap<String, Integer>> status = new ArrayList<HashMap<String, Integer>>();
+	List<String> list = new ArrayList<String>(); // 指令集合
+	List<String> NameList = new ArrayList<String>(); // 指令名集合
+	List<List<String>> preIssue = new ArrayList<List<String>>();
+	List<List<String>> preALU1 = new ArrayList<List<String>>();
+	List<List<String>> preALU2 = new ArrayList<List<String>>();
+	List<List<String>> preMEM = new ArrayList<List<String>>();
+	List<List<String>> postALU2 = new ArrayList<List<String>>();
+	List<List<String>> waiting = new ArrayList<List<String>>();
+	List<List<String>> executed = new ArrayList<List<String>>();
+	List<List<String>> postMEM = new ArrayList<List<String>>();
+	List<List<String>> instruction = new ArrayList<List<String>>();
+	
+	int cycle = 1;
+	
+	int fetch1 = -1;
+	int fetch2 = -1;
+	static int breakFlag = 0;
+	static final int basePC = 256;
+	int pc = 256;
+	int begin = 256;
+	static int countC = 0;
+	HashMap<Integer, Integer> memories = new HashMap<Integer, Integer>();
+	static int[] reg = new int[32];
+
+	public abc() {
+		init();
+	}
+
+	private void init() {
+
+		C1.put("010000", "J"); // C1
+		C1.put("010001", "JR");
+		C1.put("010010", "BEQ");
+		C1.put("010011", "BLTZ");
+		C1.put("010100", "BGTZ");
+		C1.put("010101", "BREAK");
+		C1.put("010110", "SW");
+		C1.put("010111", "LW");
+
+		C1.put("011000", "SLL"); // C4
+		C1.put("011001", "SRL");
+		C1.put("011010", "SRA");
+		C1.put("011011", "NOP");
+
+		C1.put("110000", "ADD"); // C2
+		C1.put("110001", "SUB");
+		C1.put("110010", "MUL");
+		C1.put("110011", "AND");
+		C1.put("110100", "OR");
+		C1.put("110101", "XOR");
+		C1.put("110110", "NOR");
+		C1.put("110111", "SLT");
+
+		C1.put("111000", "ADDI"); // C3
+		C1.put("111001", "ANDI");
+		C1.put("111010", "ORI");
+		C1.put("111011", "XORI");
+
+	}
+
+	public int Invert(String s) {
+		int leng, result = 0, flag;
+		leng = s.length();
+		if (leng < 32) {
+			result = Integer.valueOf(s, 2);
+		} else {
+			flag = (int) s.charAt(0) - 48;
+			if (flag == 0) {
+				result = Integer.valueOf(s.substring(1), 2);
+			} else {
+				// s=s.substring(1);
+				result = -((int) Math.pow(2, 31) - Integer.valueOf(s.substring(1), 2)) - 1;
+			}
+		}
+
+		return result;
+
+	}
+
+	public void parse() {
+		BufferedReader br = null;
+		BufferedWriter bw = null;
+		String changeline = "\r";
+		String os = System.getProperty("os.name").toLowerCase();
+		if (os.contains("linux"))
+			changeline = "\n";
+		try {
+			Scanner sc = new Scanner(System.in);
+			System.out.println("input the file address：");
+			String m = sc.next();
+			// String m="sample.txt";
+			br = new BufferedReader(new FileReader(m));
+//			br = new BufferedReader(new FileReader("sample.txt"));
+			OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream("disassembly.txt"));
+			bw = new BufferedWriter(writer);
+			String line = null;
+			boolean end = false;
+			String writeLine = "";
+			while ((line = br.readLine()) != null) {// 使用readLine方法，一次读一行
+				writeLine += line + "\t" + pc + "\t";
+				// String substring = line.substring(0, 6);
+				// System.out.println(line);
+				String opname = C1.get(line.substring(0, 6));
+				// System.out.println(opname);
+				if (opname == "ADD" || opname == "SUB" || opname == "MUL" || opname == "OR" || opname == "XOR"
+						|| opname == "NOR" || opname == "SLT") {
+					writeLine += opname + " " + "R" + Integer.parseInt(line.substring(16, 21), 2) + ", R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2) + changeline;
+
+					HashMap<String, Integer> stu1 = new HashMap<String, Integer>(); // 把状态值添加进序列
+					List<String> str = new ArrayList<String>();
+					int rs = Integer.parseInt(line.substring(6, 11), 2);
+					int rt = Integer.parseInt(line.substring(11, 16), 2);
+					int rd = Integer.parseInt(line.substring(16, 21), 2);
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd);
+					str.add("" + rs);
+					str.add("" + rt);
+					instruction.add(str);
+					stu1.put("rs", Integer.parseInt(line.substring(6, 11), 2));
+					stu1.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					stu1.put("rd", Integer.parseInt(line.substring(16, 21), 2));
+					stu1.put("pc", pc);
+					// stu1.put("category", 2);
+					status.add(stu1);
+					list.add(opname + " R" + Integer.parseInt(line.substring(16, 21), 2) + ", R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2));
+					NameList.add(opname);
+					countC++;
+				}
+
+				else if (opname == "ADDI" || opname == "ANDI" || opname == "ORI" || opname == "XORI") {
+
+					writeLine += opname + " R" + Integer.parseInt(line.substring(11, 16), 2) + ", R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ", #"
+							+ Integer.parseInt(line.substring(16), 2) + changeline;
+					HashMap<String, Integer> stu1 = new HashMap<String, Integer>();
+					List<String> str = new ArrayList<String>();
+					int rs = Integer.parseInt(line.substring(6, 11), 2);
+					int rt = Integer.parseInt(line.substring(11, 16), 2);
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rt);
+					str.add("" + rs);
+					str.add("immedit" + pc);
+					instruction.add(str);
+					stu1.put("rs", Integer.parseInt(line.substring(6, 11), 2));
+					stu1.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					stu1.put("immedit", Integer.parseInt(line.substring(16), 2));
+					stu1.put("pc", pc);
+					stu1.put("category", 3);
+					status.add(stu1);
+					list.add(opname + " R" + Integer.parseInt(line.substring(11, 16), 2) + ", R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ", #"
+							+ Integer.parseInt(line.substring(16, 32), 2));
+					NameList.add(opname);
+					countC++;
+				} else if (opname == "SLL" || opname == "SRL" || opname == "SRA") {
+
+					writeLine += opname + " R" + Integer.parseInt(line.substring(16, 21), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2) + ", #"
+							+ Integer.parseInt(line.substring(21, 26), 2) + changeline;
+					HashMap<String, Integer> stu1 = new HashMap<String, Integer>();
+
+					stu1.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					stu1.put("rd", Integer.parseInt(line.substring(16, 21), 2));
+					stu1.put("sa", Integer.parseInt(line.substring(21, 26), 2));
+					stu1.put("pc", pc);
+					stu1.put("category", 4);
+					status.add(stu1);
+					List<String> str = new ArrayList<String>();
+					int rd = Integer.parseInt(line.substring(16, 21), 2);
+					int rt = Integer.parseInt(line.substring(11, 16), 2);
+					int sa = Integer.parseInt(line.substring(21, 26), 2);
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd);
+					str.add("" + rt);
+					str.add("immedit" + pc);
+					instruction.add(str);
+					list.add(opname + " R" + Integer.parseInt(line.substring(16, 21), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2) + ", #"
+							+ Integer.parseInt(line.substring(21, 26), 2));
+					NameList.add(opname);
+					countC++;
+				} else if (opname == "LW" || opname == "SW") {
+					writeLine += opname + " R" + Integer.parseInt(line.substring(11, 16), 2) + ", "
+							+ Integer.parseInt(line.substring(16, 32), 2) + "(R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ")" + changeline;
+					HashMap<String, Integer> stu1 = new HashMap<String, Integer>();
+					stu1.put("base", Integer.parseInt(line.substring(6, 11), 2));
+					stu1.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					stu1.put("offset", Integer.parseInt(line.substring(16), 2));
+					stu1.put("pc", pc);
+					stu1.put("category", 1);
+					status.add(stu1);
+
+					list.add(opname + " R" + Integer.parseInt(line.substring(11, 16), 2) + ", "
+							+ Integer.parseInt(line.substring(16, 32), 2) + "(R"
+							+ Integer.parseInt(line.substring(6, 11), 2) + ")");
+					NameList.add(opname);
+					countC++;
+					if (opname == "LW") {
+						List<String> str = new ArrayList<String>();
+
+						int rt = Integer.parseInt(line.substring(11, 16), 2);
+						int base = Integer.parseInt(line.substring(6, 11), 2);
+						int offset = Integer.parseInt(line.substring(16), 2);
+						str.add("" + pc);
+						str.add(opname);
+						str.add("" + rt);
+						str.add("" + base);
+						str.add("" + pc);
+						instruction.add(str);
+					}
+					if (opname == "SW") {
+						List<String> str = new ArrayList<String>();
+						int rd = 0;
+						int rt = Integer.parseInt(line.substring(11, 16), 2);
+						int base = Integer.parseInt(line.substring(6, 11), 2);
+						int offset = Integer.parseInt(line.substring(16), 2);
+						str.add("" + pc);
+						str.add(opname);
+						str.add("" + offset + pc);
+						str.add("" + rt);
+						str.add("" + base);
+						instruction.add(str);
+					}
+				} else if (opname == "J") {
+					writeLine += opname + " #" + Integer.parseInt(line.substring(6), 2) * 4 + changeline;
+					HashMap<String, Integer> desc = new HashMap<String, Integer>();
+//					desc.put("address", Integer.parseInt(line.substring(6), 2) * 4);
+					desc.put("target", Integer.parseInt(line.substring(6), 2) * 4);
+					desc.put("pc", pc);
+					desc.put("category", 1);
+					status.add(desc);
+					list.add(opname + " #" + Integer.parseInt(line.substring(6), 2) * 4);
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rd = 0;
+					int rt = 0;
+					int adress = Integer.parseInt(line.substring(6), 2) * 4;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + adress);
+					str.add("" + rt + pc);
+					str.add("" + rd + pc);
+					instruction.add(str);
+				} else if (opname == "JR") {
+					writeLine += opname + " #" + Integer.parseInt(line.substring(21, 26), 2) + changeline;
+					HashMap<String, Integer> desc = new HashMap<String, Integer>();
+					desc.put("target", Integer.parseInt(line.substring(21, 26), 2));// rt
+					desc.put("pc", pc);
+					desc.put("category", 1);
+					status.add(desc);
+					list.add(opname + " #" + Integer.parseInt(line.substring(21, 26), 2));
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rd = 0;
+					int rt = Integer.parseInt(line.substring(21, 26), 2);
+					int base = 0;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd + pc);
+					str.add("" + rt);
+					str.add("" + base + pc);
+					instruction.add(str);
+				} else if (opname == "BEQ") {
+					writeLine += opname + " R" + Integer.parseInt(line.substring(6, 11), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2) + ", #"
+							+ Integer.parseInt(line.substring(16), 2) * 4 + changeline;
+					HashMap<String, Integer> desc = new HashMap<String, Integer>();
+					desc.put("rs", Integer.parseInt(line.substring(6, 11), 2));
+					desc.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					desc.put("offset", Integer.parseInt(line.substring(16), 2) * 4);
+					desc.put("pc", pc);
+					status.add(desc);
+					list.add(opname + " R" + Integer.parseInt(line.substring(6, 11), 2) + ", R"
+							+ Integer.parseInt(line.substring(11, 16), 2) + ", #"
+							+ Integer.parseInt(line.substring(16), 2) * 4);
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rs = Integer.parseInt(line.substring(6, 11), 2);
+					int rt = Integer.parseInt(line.substring(11, 16), 2);
+					int rd = 0;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("BEQ" + pc);
+					str.add("" + rt);
+					str.add("" + rs);
+					instruction.add(str);
+					
+//					pc -= 4;
+					
+					
+				} else if (opname == "BLTZ" || opname == "BGTZ") {
+					writeLine += opname + " R" + Integer.parseInt(line.substring(6, 11), 2) + ", #"
+							+ Integer.parseInt(line.substring(16), 2) * 4 + changeline;
+					HashMap<String, Integer> stu1 = new HashMap<String, Integer>();
+					stu1.put("rs", Integer.parseInt(line.substring(6, 11), 2));
+					stu1.put("rt", Integer.parseInt(line.substring(11, 16), 2));
+					stu1.put("offset", Integer.parseInt(line.substring(16), 2) * 4);
+					stu1.put("pc", pc);
+					status.add(stu1);
+					list.add(opname + " R" + Integer.parseInt(line.substring(6, 11), 2) + ", #"
+							+ Integer.parseInt(line.substring(16), 2) * 4);
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rs = Integer.parseInt(line.substring(6, 11), 2);
+					int rt = Integer.parseInt(line.substring(11, 16), 2);
+					int rd = 0;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd + pc);
+					str.add("" + rs);
+					str.add("" + rt);
+					instruction.add(str);
+				} else if (opname == "BREAK") {
+					writeLine += opname + changeline;
+
+					HashMap<String, Integer> desc = new HashMap<String, Integer>();
+					desc.put("pc", pc);
+					desc.put("category", 1);
+					status.add(desc);
+					list.add(opname);
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rs = 0;
+					int rt = 0;
+					int rd = 0;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd + pc);
+					str.add("" + rt + pc);
+					str.add("" + rs + pc);
+					instruction.add(str);
+				} else if (opname == "NOP") {
+					writeLine += opname + changeline;
+
+					HashMap<String, Integer> desc = new HashMap<String, Integer>();
+					desc.put("pc", pc);
+					status.add(desc);
+					list.add(opname);
+					NameList.add(opname);
+					countC++;
+					List<String> str = new ArrayList<String>();
+					int rs = 0;
+					int rt = 0;
+					int rd = 0;
+					int offset = 0;
+					str.add("" + pc);
+					str.add(opname);
+					str.add("" + rd + pc);
+					str.add("" + rt + pc);
+					str.add("" + rs + pc);
+					instruction.add(str);
+				} else {
+					writeLine += Invert(line) + changeline;
+					memories.put(pc, Invert(line));
+				}
+
+				pc += 4;
+			}
+			bw.write(writeLine);
+			bw.flush();
+			bw.close();
+
+			// simulation
+			pc = basePC;
+			int count = 0;
+
+			BufferedWriter bw1 = null;
+
+			bw1 = new BufferedWriter(new FileWriter(new File("simulation.txt")));
+
+			while (breakFlag != -1) {
+				// Fetch Instruction
+				bw1.write("--------------------" + '\n' + "Cycle:" + (cycle) + '\n' + '\n' + "IF Unit:" + '\n' + '\t'
+						+ "Waiting Instruction:");
+
+				if (count < 4 && waiting.size() == 0 && executed.size() == 0) {
+					String insNameString = NameList.get((pc - basePC) / 4);
+
+					if (insNameString.contains("J") || insNameString.contains("BREAK")
+							|| insNameString.contains("NOP")) {
+						executed.add(instruction.get((pc - basePC) / 4));
+					} else if (insNameString.contains("JR") || insNameString.contains("BEQ")
+							|| insNameString.contains("BGTZ")) {
+						waiting.add(instruction.get((pc - basePC) / 4));
+					} else {
+						preIssue.add(instruction.get((pc - basePC) / 4));
+					}
+					pc += 4;
+					count++;
+					if (count < 4 && waiting.size() == 0 && executed.size() == 0) {
+						insNameString = NameList.get((pc - basePC) / 4);
+						if (insNameString.contains("J") || insNameString.contains("BREAK")
+								|| insNameString.contains("NOP")) {
+							executed.add(instruction.get((pc - basePC) / 4));
+						} else if (insNameString.contains("JR") || insNameString.contains("BEQ")
+								|| insNameString.contains("BGTZ")) {
+							waiting.add(instruction.get((pc - basePC) / 4));
+						} else {
+							preIssue.add(instruction.get((pc - basePC) / 4));
+							pc += 4;
+						}
+
+					}
+//					pc += 4;
+				}
+				if (waiting.size() == 1) {
+					bw1.write(" [" + list.get((Integer.parseInt(waiting.get(0).get(0))-basePC)/4) + "]" + '\n');
+				} else {
+					bw1.write('\n');
+				}
+
+				// executed
+				if (executed.size() == 1) {
+					bw1.write('\t' + "Executed Instruction: [" + list.get((Integer.parseInt(executed.get(0).get(0))-basePC)/4) + "]" + '\n');
+				} else {
+					bw1.write('\t' + "Executed Instruction:" + '\n');
+				}
+
+				// preIssue
+				bw1.write("Pre-Issue Queue:" + '\n');
+				for (int j = 0; j < 4; j++) {
+					if (j < preIssue.size()) {
+						bw1.write('\t' + "Entry " + j + ": [" +list.get((Integer.parseInt(preIssue.get(j).get(0))-basePC)/4) + "]" + "\n");
+					} else {
+						bw1.write('\t' + "Entry " + j + ":" + "\n");
+					}
+				}
+
+				count = preIssue.size();
+
+				// Pre-ALU1
+				bw1.write("Pre-ALU1 Queue:" + '\n');
+				for (int j = 0; j < 2; j++) {
+					if (j < preALU1.size()) {
+						bw1.write('\t' + "Entry " + j + ": [" + list.get((Integer.parseInt(preALU1.get(j).get(0))-basePC)/4) + "]" + "\n");
+					} else {
+						bw1.write('\t' + "Entry " + j + ":" + "\n");
+					}
+				}
+
+				// Pre-MEM
+				bw1.write("Pre-MEM Queue:");
+				if (preMEM.size() != 0) {
+					bw1.write(" [" +list.get((Integer.parseInt(preMEM.get(0).get(0))-basePC)/4)+ "]" + "\n");
+				} else {
+					bw1.write("\n");
+				}
+
+				// Post-MEM
+				bw1.write("Post-MEM Queue:");
+				if (postMEM.size() != 0) {
+					bw1.write(" [" + list.get((Integer.parseInt(postMEM.get(0).get(0))-basePC)/4) + "]" + "\n");
+				} else {
+					bw1.write("\n");
+				}
+
+				// Pre-ALU2
+				bw1.write("Pre-ALU2 Queue:" + '\n');
+				for (int j = 0; j < 2; j++) {
+					if (j < preALU2.size()) {
+						bw1.write('\t' + "Entry " + j + ": [" + list.get((Integer.parseInt(preALU2.get(j).get(0))-basePC)/4) + "]" + "\n");
+					} else {
+						bw1.write('\t' + "Entry " + j + ":" + "\n");
+					}
+				}
+
+				// Post-ALU2
+				bw1.write("Post-ALU2 Queue:");
+				if (postALU2.size() != 0) {
+					bw1.write(" [" + list.get((Integer.parseInt(postALU2.get(0).get(0))-basePC)/4) + "]" + "\n");
+				} else {
+					bw1.write("\n");
+				}
+
+				bw1.write("\n");
+
+				printout(bw1);
+
+				// calculate
+				if (executed.size() != 0) {
+					int tmpIndex = -1;
+
+					tmpIndex = Integer.parseInt(executed.get(0).get(0));
+//					System.out.println(tmpIndex);
+					pc = execution(tmpIndex);
+				}
+
+				if (preMEM.size() != 0 && preMEM.get(0).get(1).equals("SW")) {
+					int tmpIndex = -1;
+					tmpIndex = Integer.parseInt(preMEM.get(0).get(0));
+//					System.out.println(tmpIndex);
+					execution(tmpIndex);
+				}
+
+				if (postMEM.size() != 0) {
+					int tmpIndex = -1;
+					tmpIndex = Integer.parseInt(postMEM.get(0).get(0));
+//					System.out.println(tmpIndex);
+					execution(tmpIndex);
+				}
+
+				if (postALU2.size() != 0) {
+					int tmpIndex = -1;
+					tmpIndex = Integer.parseInt(postALU2.get(0).get(0));
+//					System.out.println(tmpIndex);
+					execution(tmpIndex);
+				}
+
+				// issue
+
+				// executed
+				if (executed.size() != 0) {
+					if (executed.get(0).get(1).equals("BREAK")) {
+						breakFlag = -1;
+					} else {
+						executed.remove(0);
+					}
+				}
+
+				// waiting->executed
+				if (waiting.size() != 0) {
+					List<String> strtemp = new ArrayList<String>();
+
+					strtemp = waiting.get(0);
+//					
+//						if(cycle == 5)
+//					{
+//						System.out.println("cycle"+cycle);
+//						System.out.println("WAWCheck(strtemp, j)"+WAWCheck(strtemp, preIssue.size()));
+//						System.out.println("WARCheck(strtemp, j)"+WARCheck(strtemp, preIssue.size()));
+//						System.out.println("RAWCheck(strtemp, j)"+RAWCheck(strtemp, preIssue.size()));
+						
+//					}
+					
+//					if (!WAWCheck(strtemp, preIssue.size()) && !WARCheck(strtemp, preIssue.size())
+//							&& !RAWCheck(strtemp, preIssue.size())) {
+					if (!RAWCheck(strtemp, preIssue.size())) {
+//						System.out.println("asjasghas\t"+cycle);
+						executed.add(waiting.get(0));
+						waiting.remove(0);
+					}
+				}
+				int lsFlag = -1; // index
+
+				int ALU1Flag = 0;
+				for (int j = 0; j < preIssue.size(); j++) {
+					if (preIssue.get(j).get(1).equals("LW") || preIssue.get(j).get(1).equals("SW")) {
+						if (ALU1Flag != 1) {
+
+							List<String> strtemp = new ArrayList<String>();
+
+							strtemp = preIssue.get(j);
+							if (preALU1.size() <= 1 && !WAWCheck(strtemp, j) && !WARCheck(strtemp, j)
+									&& !RAWCheck(strtemp, j)) {
+								lsFlag = j;
+								ALU1Flag = 1;
+							}
+						}
+					}
+				}
+
+				// preIssue->preALU2
+
+				int nlsFlag = -1; // index
+
+				int ALU2Flag = 0;
+				for (int j = 0; j < preIssue.size(); j++) {
+					if (!preIssue.get(j).get(1).equals("LW") && !preIssue.get(j).get(1).equals("SW")) {
+						if (ALU2Flag != 1) {
+							List<String> strtemp = new ArrayList<String>();
+
+							strtemp = preIssue.get(j);
+//							if(cycle == 2){
+//								System.out.println("cycle2");
+//								System.out.println("WAWCheck(strtemp, j)"+WAWCheck(strtemp, j));
+//								System.out.println("WARCheck(strtemp, j)"+WARCheck(strtemp, j));
+//								System.out.println("RAWCheck(strtemp, j)"+RAWCheck(strtemp, j));
+//								
+//							}
+							if (preALU2.size() <= 1 && !WAWCheck(strtemp, j) && !WARCheck(strtemp, j)
+									&& !RAWCheck(strtemp, j)) {
+								nlsFlag = j;
+								ALU2Flag = 1;
+							}
+						}
+					}
+				}
+
+				// preALU1->preMem
+
+				int preALU1Flag = 0;
+
+				if (preALU1.size() != 0) {
+					preALU1Flag = 1;
+				}
+
+				// preMem->postMem
+
+				int lwFlag = 0;
+				int swFlag = 0;
+
+				if (preMEM.size() != 0) {
+					if (preMEM.get(0).get(1).equals("SW")) {
+						swFlag = 1;
+					} else {
+						lwFlag = 1;
+					}
+				}
+
+				// preALU2->postALU2
+
+				int preALU2Flag = 0;
+
+				if (preALU2.size() != 0) {
+					preALU2Flag = 1;
+				}
+
+				// postMem
+
+				int postMemFlag = 0;
+
+				if (postMEM.size() != 0) {
+					postMemFlag = 1;
+				}
+
+				// postALU2
+
+				int postALU2Flag = 0;
+
+				if (postALU2.size() != 0) {
+					postALU2Flag = 1;
+				}
+
+				// immigrate
+
+				// postALU2
+				if (postALU2Flag == 1) {
+					postALU2.remove(0);
+				}
+
+				// postMem
+				if (postMemFlag == 1) {
+					postMEM.remove(0);
+				}
+
+				// preALU2->postALU2
+				if (preALU2Flag == 1) {
+					postALU2.add(preALU2.get(0));
+					preALU2.remove(0);
+				}
+
+				// preMem->postMem
+				if (lwFlag == 1) {
+					postMEM.add(preMEM.get(0));
+					preMEM.remove(0);
+				} else if (swFlag == 1) {
+					preMEM.remove(0);
+				}
+
+				// preALU1->preMem
+				if (preALU1Flag == 1) {
+					preMEM.add(preALU1.get(0));
+					preALU1.remove(0);
+				}
+
+				// preIssue->preALU1
+				if (lsFlag != -1) {
+					preALU1.add(preIssue.get(lsFlag));
+					preIssue.remove(lsFlag);
+				}
+				
+				if( lsFlag != -1 && lsFlag < nlsFlag)
+				{
+					nlsFlag --;
+				}
+
+				if (nlsFlag != -1) {
+//					System.out.println("cycle"+cycle+"\t"+nlsFlag);
+//					for(int m = 0;m < preIssue.size();m++){
+//						System.out.println(preIssue.get(m));
+//					}
+					
+					
+					preALU2.add(preIssue.get(nlsFlag));
+					preIssue.remove(nlsFlag);
+				}
+
+				cycle++;
+				if (cycle == 30) {
+					break;
+				}
+
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void printout(BufferedWriter bw1) {
+		try {
+
+			bw1.write("Registers\n");
+			String str = String.format("R%02d:", 0);
+
+			for (int i = 0; i < 32; i++) {
+				str += "\t" + reg[i];
+				if ((i + 1) % 8 == 0) {
+					bw1.write(str);
+					bw1.write("\n");
+					str = String.format("R%02d:", i + 1);
+
+				}
+			}
+			bw1.write("\n");
+			bw1.write("Data");
+			str = String.format("%d:", 300);
+
+			for (int i = 0; i < 16; i++) {
+				str += "\t" + memories.get(i * 4 + 300);
+				if ((i + 1) % 8 == 0) {
+					bw1.write("\n");
+					bw1.write(str);
+					str = String.format("%d:", 300 + (i + 1) * 4);
+
+				}
+			}
+			bw1.write("\n");
+			bw1.flush();
+			// bw1.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	// 写后写
+	Boolean WARCheck(List<String> ins, int num) {
+//		System.out.println("\n"+cycle);
+//		for(int m = 0;m < ins.size();m++){
+//			System.out.println(ins.get(m));
+//		}
+		int risk = 0, i;
+		for (i = 0; i < num; i++)
+		{	
+//			System.out.println(i+"\t"+preIssue.get(i));
+			if ((ins.get(2).equals(preIssue.get(i).get(3))) | (ins.get(2).equals(preIssue.get(i).get(4)))) { // System.out.println("WAR---:"+ins.get(4)+"---"+PreIssue.get(i).get(5)+"----"+PreIssue.get(i).get(6));
+				risk++;
+			}
+		}
+		if (risk != 0)
+			return true;
+		else
+			return false;
+	}
+
+	Boolean WAWCheck(List<String> ins, int num) 
+	{
+		int risk = 0, i;
+		for (i = 0; i < num; i++) 
+		{
+			if (ins.get(2).equals(preIssue.get(i).get(2))) 
+			{		
+				risk++;
+			}
+		//	System.out.println("WAW---:"+ins.get(1)+"---"+preIssue.get(i).get(1));}
+		}
+		for (i = 0; i < preALU1.size(); i++) 
+		{
+			if (ins.get(2).equals(preALU1.get(i).get(2)))
+			{	
+				risk++;
+		//	System.out.println("WAW---:"+ins.get(1)+"---"+preALU1.get(i).get(1));
+			}
+		}
+		for (i = 0; i < preALU2.size(); i++) 
+		{
+			if (ins.get(2).equals(preALU2.get(i).get(2)))
+			{	
+				risk++;
+	//	System.out.println("WAW---:"+ins.get(1)+"---"+PreALU1.get(i).get(1));
+			}
+		}
+		
+		if (preMEM.size() > 0)
+		{
+			if (ins.get(2).equals(preMEM.get(0).get(2)))
+			{	risk++;
+//				System.out.println("WAW---:"+ins.get(1)+"---"+preMEM.get(0).get(1));
+			}
+		}
+		if (postMEM.size() > 0)
+		{
+			if (ins.get(2).equals(postMEM.get(0).get(2)))
+			{	risk++;
+		//System.out.println("WAW---:"+ins.get(1)+"---"+postMEM.get(0).get(1));
+			}
+		}
+		if (postALU2.size() > 0)
+		{
+			if (ins.get(1).equals(postALU2.get(0).get(1)))
+			{	
+				risk++;
+			}
+		}
+//		System.out.println("WAW---:"+ins.get(1)+"---"+postALU2.get(0).get(1));}
+		if (risk != 0)
+		{
+			return true;
+		}
+		
+		return false;
+	}
+
+	// Check Read After Write
+	Boolean RAWCheck(List<String> ins, int num) {
+		int fj_risk = 0, fk_risk = 0, i;
+		for (i = 0; i < num; i++) {
+			if (ins.get(3).equals(preIssue.get(i).get(2))) {
+				// System.out.println(ins.get(5)); System.out.println("\n\n\n");
+				fj_risk++;
+			}
+		}
+		for (i = 0; i < preALU1.size(); i++) {
+			if (ins.get(3).equals(preALU1.get(i).get(2)))
+				fj_risk++;
+		}
+		for (i = 0; i < preALU2.size(); i++) {
+			if (ins.get(3).equals(preALU2.get(i).get(2)))
+				fj_risk++;
+		}
+		if (preMEM.size() != 0) {
+			if (ins.get(3).equals(preMEM.get(0).get(2)))
+				fj_risk++;
+		}
+		if (postMEM.size() != 0) {
+			if (ins.get(3).equals(postMEM.get(0).get(2)))
+				fj_risk++;
+		}
+		if (postALU2.size() != 0) {
+			if (ins.get(3).equals(postALU2.get(0).get(2)))
+				fj_risk++;
+		}
+		for (i = 0; i < num; i++) {
+			if (ins.get(4).equals(preIssue.get(i).get(2)))
+				fk_risk++;
+		}
+		for (i = 0; i < preALU1.size(); i++) {
+			if (ins.get(4).equals(preALU1.get(i).get(2)))
+				fk_risk++;
+		}
+		for (i = 0; i < preALU2.size(); i++) {
+			if (ins.get(4).equals(preALU2.get(i).get(2)))
+				fk_risk++;
+		}
+		if (preMEM.size() != 0) {
+			if (ins.get(4).equals(preMEM.get(0).get(2)))
+				fk_risk++;
+		}
+		if (postMEM.size() != 0) {
+			if (ins.get(4).equals(postMEM.get(0).get(2)))
+				fk_risk++;
+		}
+		if (postALU2.size() != 0) {
+			if (ins.get(4).equals(postALU2.get(0).get(2)))
+				fk_risk++;
+		}
+		if ((fj_risk != 0) || (fk_risk != 0))
+			return true;
+		else
+			return false;
+	}
+
+	public int execution(int pc) { // 执行
+		HashMap<String, Integer> current = status.get((pc - begin) / 4);
+		String currOpname = NameList.get((pc - begin) / 4); // 取当前指令的操作名
+		if (currOpname.equals("J"))
+		{
+			pc = current.get("target");
+		
+			System.out.println("J\t"+pc);
+		}
+		else if (currOpname.equals("JR")) {
+			pc = reg[current.get("target")];
+		} else if (currOpname.equals("BEQ")) {
+			int rs = current.get("rs");
+			int rt = current.get("rt");
+			if (reg[rs] == reg[rt])
+				pc += current.get("offset") + 4;
+			else
+				pc += 4;
+		} else if (currOpname.equals("BGTZ")) {
+			int rs = current.get("rs");
+			if (reg[rs] > 0)
+				pc += current.get("offset") + 4;
+			else
+				pc += 4;
+		} else if (currOpname.equals("BLTZ")) {
+			int rs = current.get("rs");
+			if (reg[rs] < 0)
+				pc += current.get("offset") + 4;
+			else
+				pc += 4;
+		} else if (currOpname.equals("BREAK")) {
+
+		} else if (currOpname.equals("SW")) {
+			int rt = current.get("rt");
+			int base = current.get("base");
+			memories.put(reg[base] + current.get("offset"), reg[rt]);
+			pc += 4;
+		} else if (currOpname.equals("LW")) {
+			int rt = current.get("rt");
+			int base = current.get("base");
+			int off = current.get("offset");
+			int ba = reg[base];
+			int sum = ba + off;
+			reg[rt] = memories.get(sum);
+			pc += 4;
+		} else if (currOpname.equals("ADD")) {
+			reg[current.get("rd")] = reg[current.get("rs")] + reg[current.get("rt")];
+			pc += 4;
+		} else if (currOpname.equals("SUB")) {
+
+			reg[current.get("rd")] = reg[current.get("rs")] - reg[current.get("rt")];
+			pc += 4;
+		} else if (currOpname.equals("MUL")) {
+			reg[current.get("rd")] = reg[current.get("rs")] * reg[current.get("rt")];
+			pc += 4;
+		} else if (currOpname.equals("OR")) {
+			if (reg[current.get("rs")] == 1 || reg[current.get("rt")] == 1)
+				reg[current.get("rd")] = 1;
+			else
+				reg[current.get("rd")] = 0;
+			pc += 4;
+		} else if (currOpname.equals("XOR")) {
+			reg[current.get("rd")] = reg[current.get("rs")] ^ reg[current.get("rt")];
+			pc += 4;
+		} else if (currOpname.equals("NOR")) {
+			reg[current.get("rd")] = (reg[current.get("rs")] ^ reg[current.get("rt")]);
+			if (reg[current.get("rd")] == 1)
+				reg[current.get("rd")] = 0;
+			else
+				reg[current.get("rd")] = 1;
+			pc += 4;
+		} else if (currOpname.equals("SLT")) {
+			if (reg[current.get("rs")] < reg[current.get("rt")])
+				reg[current.get("rd")] = 1;
+			else
+				reg[current.get("rd")] = 0;
+			pc += 4;
+		} else if (currOpname.equals("ADDI")) {
+			reg[current.get("rt")] = reg[current.get("rs")] + current.get("immedit");
+			pc += 4;
+		} else if (currOpname.equals("ANDI")) {
+			if (reg[current.get("rs")] == current.get("immedit"))
+				reg[current.get("rt")] = 1;
+			else
+				reg[current.get("rt")] = 0;
+			pc += 4;
+		} else if (currOpname.equals("ORI")) {
+
+			reg[current.get("rt")] = reg[current.get("rs")] | current.get("immedit");
+			pc += 4;
+		} else if (currOpname.equals("XORI")) {
+			reg[current.get("rt")] = reg[current.get("rt")] ^ current.get("immedit");
+			pc += 4;
+		} else if (currOpname.equals("SLL")) {
+			reg[current.get("rd")] = reg[current.get("rt")] << current.get("sa");
+			pc += 4;
+		} else if (currOpname.equals("SRL")) {
+			reg[current.get("rd")] = reg[current.get("rt")] >>> current.get("sa");
+			pc += 4;
+		} else if (currOpname.equals("SRA")) {
+			reg[current.get("rd")] = reg[current.get("rt")] >> current.get("sa");
+			pc += 4;
+		}
+		return pc;
+	}
+
+	public static void main(String[] args) {
+		abc test = new abc();
+		test.parse();
+
+	}
+
+}
